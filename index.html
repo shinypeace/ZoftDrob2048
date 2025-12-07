@@ -1,171 +1,893 @@
-let board = [];
-let rows = 8;
-let columns = 8;
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soft Drop 2048</title>
+    <!-- VK Bridge -->
+    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Matter.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
 
-let minesCount = 10;
-let minesLocation = []; // "2-2", "3-4", "2-1"
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #FAF8EF;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
 
-let tilesClicked = 0; //goal to click all tiles except the ones containing mines
-let flagEnabled = false;
+        /* Анимации */
+        .slide-up { animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .bounce-in { animation: bounceIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        
+        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes bounceIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
-let gameOver = false;
+        /* Контейнер игры */
+        #game-wrapper {
+            position: relative;
+            margin: 0 auto;
+            transition: width 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            /* Тень для всего блока игры */
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.15));
+        }
 
-window.onload = function () {
-  startGame();
-};
+        /* Шапка */
+        #game-header {
+            background: #bbada0;
+            border-radius: 12px 12px 0 0;
+            height: 70px;
+            padding: 0 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
 
-function setMines() {
-  // minesLocation.push("2-2");
-  // minesLocation.push("2-3");
-  // minesLocation.push("5-6");
-  // minesLocation.push("3-4");
-  // minesLocation.push("1-1");
+        /* Поле счета */
+        .score-box {
+            background: #cdc1b4;
+            padding: 5px 15px;
+            border-radius: 6px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 80px;
+        }
 
-  let minesLeft = minesCount;
-  while (minesLeft > 0) {
-    let r = Math.floor(Math.random() * rows);
-    let c = Math.floor(Math.random() * columns);
-    let id = r.toString() + "-" + c.toString();
+        /* Канвас */
+        canvas {
+            display: block;
+            border-radius: 0 0 12px 12px;
+            background: #CDC1B4;
+        }
 
-    if (!minesLocation.includes(id)) {
-      minesLocation.push(id);
-      minesLeft -= 1;
-    }
-  }
-}
+        /* Кнопки управления */
+        .control-btn {
+            width: 45px;
+            height: 45px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #776e65;
+            background: #faf8ef;
+            font-size: 1.2rem;
+            transition: all 0.2s;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: visible; /* Чтобы плашка AD торчала */
+        }
+        .control-btn:active { transform: scale(0.95); box-shadow: inset 0 2px 5px rgba(0,0,0,0.1); }
+        
+        /* Активная кнопка удаления */
+        .delete-active {
+            background: #ff6b6b !important;
+            color: white !important;
+            animation: pulse 1.5s infinite;
+        }
+        
+        /* Плашка рекламы */
+        .ad-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background-color: #3b82f6; /* Синий цвет как в примере */
+            color: white;
+            font-size: 9px;
+            font-weight: 900;
+            padding: 2px 4px;
+            border-radius: 4px;
+            border: 2px solid #faf8ef;
+            line-height: 1;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
 
-function startGame() {
-  document.getElementById("mines-count").innerText = minesCount;
-  document.getElementById("flag-button").addEventListener("click", setFlag);
-  setMines();
+        .btn-disabled {
+            opacity: 0.6;
+            pointer-events: none;
+            background: #e0e0e0;
+            color: #a0a0a0;
+        }
 
-  //populate our board
-  for (let r = 0; r < rows; r++) {
-    let row = [];
-    for (let c = 0; c < columns; c++) {
-      //<div id="0-0"></div>
-      let tile = document.createElement("div");
-      tile.id = r.toString() + "-" + c.toString();
-      tile.addEventListener("click", clickTile);
-      document.getElementById("board").append(tile);
-      row.push(tile);
-    }
-    board.push(row);
-  }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 107, 107, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0); } }
 
-  console.log(board);
-}
+        /* Модалки и меню */
+        .menu-btn { transition: all 0.2s; position: relative; overflow: hidden; }
+        .menu-btn:active { transform: scale(0.96); }
+        
+        .locked { filter: grayscale(1); opacity: 0.6; pointer-events: none; }
+        
+        .cursor-delete { cursor: crosshair !important; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center bg-[#FAF8EF]">
 
-function setFlag() {
-  if (flagEnabled) {
-    flagEnabled = false;
-    document.getElementById("flag-button").style.backgroundColor = "lightgray";
-  } else {
-    flagEnabled = true;
-    document.getElementById("flag-button").style.backgroundColor = "darkgray";
-  }
-}
+    <!-- Обертка игры -->
+    <div id="game-wrapper" class="hidden">
+        
+        <!-- Шапка -->
+        <div id="game-header">
+            <div class="score-box">
+                <span class="text-[#eee4da] text-[10px] font-bold uppercase tracking-wider">Счет</span>
+                <span id="score-display" class="text-xl font-bold leading-tight">0</span>
+            </div>
 
-function clickTile() {
-  if (gameOver || this.classList.contains("tile-clicked")) {
-    return;
-  }
+            <div class="flex gap-3">
+                <!-- Кнопка удаления (Ластик) с Рекламой -->
+                <button id="btn-delete" onclick="game.tryActivateDelete()" class="control-btn" title="Удалить шар (Смотреть рекламу)">
+                    <div class="ad-badge">AD</div>
+                    <i class="fas fa-eraser"></i>
+                </button>
 
-  let tile = this;
-  if (flagEnabled) {
-    if (tile.innerText == "") {
-      tile.innerText = "🚩";
-    } else if (tile.innerText == "🚩") {
-      tile.innerText = "";
-    }
-    return;
-  }
+                <!-- Пауза -->
+                <button onclick="game.togglePause()" class="control-btn" title="Пауза">
+                    <i class="fas fa-pause"></i>
+                </button>
+            </div>
+        </div>
 
-  if (minesLocation.includes(tile.id)) {
-    // alert("GAME OVER");
-    gameOver = true;
-    revealMines();
-    return;
-  }
+        <canvas id="world"></canvas>
+        
+        <!-- Линия опасности -->
+        <div id="danger-line" class="absolute w-full border-b-2 border-dashed border-red-400 opacity-0 transition-opacity duration-300 pointer-events-none z-20" style="top: 200px;">
+            <span class="absolute right-2 -top-6 text-[10px] text-white font-bold bg-red-400 px-2 py-0.5 rounded-full shadow-sm">ОПАСНОСТЬ</span>
+        </div>
 
-  let coords = tile.id.split("-"); // "0-0" -> ["0", "0"]
-  let r = parseInt(coords[0]);
-  let c = parseInt(coords[1]);
-  checkMine(r, c);
-}
+        <!-- UI Слои -->
+        <div id="pause-screen" class="absolute inset-0 z-40 bg-[#FAF8EF]/90 backdrop-blur-sm hidden flex flex-col items-center justify-center rounded-xl bounce-in">
+            <h2 class="text-3xl font-black mb-6 text-[#776e65]">Пауза</h2>
+            <div class="w-48 space-y-3">
+                <button onclick="game.togglePause()" class="w-full bg-[#edc22e] text-white py-3 rounded-lg font-bold shadow-md menu-btn">Продолжить</button>
+                <button onclick="game.quitToMenu()" class="w-full bg-[#8f7a66] text-white py-3 rounded-lg font-bold shadow-md menu-btn">Меню</button>
+            </div>
+        </div>
 
-function revealMines() {
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < columns; c++) {
-      let tile = board[r][c];
-      if (minesLocation.includes(tile.id)) {
-        tile.innerText = "💣";
-        tile.style.backgroundColor = "red";
-      }
-    }
-  }
-}
+        <div id="gameover-screen" class="absolute inset-0 z-40 bg-[#FAF8EF]/95 backdrop-blur-md hidden flex flex-col items-center justify-center rounded-xl bounce-in">
+            <h2 class="text-4xl font-black mb-2 text-[#776e65]">Конец Игры!</h2>
+            <p class="text-[#776e65] mb-6 text-sm font-semibold">Башня стала слишком высокой</p>
+            
+            <div class="bg-[#bbada0] rounded-lg px-8 py-4 mb-8 text-white text-center shadow-inner">
+                <div class="text-xs uppercase font-bold text-[#eee4da]">Итоговый счет</div>
+                <div id="final-score" class="text-4xl font-black">0</div>
+            </div>
 
-function checkMine(r, c) {
-  if (r < 0 || r >= rows || c < 0 || c >= columns) {
-    return;
-  }
-  if (board[r][c].classList.contains("tile-clicked")) {
-    return;
-  }
+            <div class="w-56 space-y-3">
+                <button onclick="game.restart()" class="w-full bg-[#edc22e] text-white py-3 rounded-lg font-bold shadow-lg menu-btn hover:bg-[#e5ba2a]">
+                    <i class="fas fa-redo mr-2"></i> Заново
+                </button>
+                <button onclick="game.quitToMenu()" class="w-full bg-[#8f7a66] text-white py-3 rounded-lg font-bold shadow-md menu-btn">
+                    <i class="fas fa-home mr-2"></i> Меню
+                </button>
+            </div>
+        </div>
+    </div>
 
-  board[r][c].classList.add("tile-clicked");
-  tilesClicked += 1;
+    <!-- ГЛАВНОЕ МЕНЮ -->
+    <div id="main-menu" class="absolute inset-0 z-50 bg-[#FAF8EF] flex flex-col items-center justify-center p-6">
+        <div class="text-center mb-10 slide-up">
+            <div class="inline-block bg-[#edc22e] text-white text-5xl font-black p-4 rounded-xl shadow-lg mb-2">2048</div>
+            <div class="text-3xl font-bold text-[#776e65] tracking-widest uppercase">Soft Drop</div>
+        </div>
+        
+        <div class="w-full max-w-sm space-y-4 slide-up" style="animation-delay: 0.1s;">
+            <div class="text-[#776e65] text-sm font-bold uppercase tracking-wide mb-2 ml-1">Выбор режима</div>
+            <div id="level-select" class="grid grid-cols-1 gap-3">
+                <!-- JS Generation -->
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3 mt-6">
+                <button onclick="ui.showRules()" class="bg-[#8f7a66] text-white py-3 rounded-lg font-bold shadow hover:bg-[#7f6a56] menu-btn text-sm">
+                    Правила
+                </button>
+                <button onclick="ui.showStats()" class="bg-[#8f7a66] text-white py-3 rounded-lg font-bold shadow hover:bg-[#7f6a56] menu-btn text-sm">
+                    Статистика
+                </button>
+            </div>
+        </div>
+    </div>
 
-  let minesFound = 0;
+    <!-- Модалка Правил -->
+    <div id="rules-modal" class="absolute inset-0 z-[60] bg-black/20 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-xs w-full shadow-2xl bounce-in">
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-[#776e65]">Правила</h3>
+                <button onclick="ui.hideModal('rules-modal')" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5 text-[#776e65] text-sm space-y-4">
+                <div class="flex gap-3 items-center">
+                    <div class="w-8 h-8 rounded-full bg-[#bbada0] flex items-center justify-center text-white font-bold shrink-0 text-xs">
+                        <i class="fas fa-hand-pointer"></i>
+                    </div>
+                    <p class="font-semibold">
+                        Наводи и отпускай палец, чтобы бросить шар.
+                    </p>
+                </div>
+                <div class="flex gap-3 items-center">
+                    <div class="w-8 h-8 rounded-full bg-[#f65e3b] flex items-center justify-center text-white font-bold shrink-0">
+                        <i class="fas fa-compress"></i>
+                    </div>
+                    <p>
+                        Одинаковые шары сливаются (2+2=4).
+                    </p>
+                </div>
+                <div class="flex gap-3 items-center">
+                    <div class="w-8 h-8 rounded-full bg-[#edc22e] flex items-center justify-center text-white font-bold shrink-0">
+                        <i class="fas fa-eraser text-sm"></i>
+                    </div>
+                    <p>
+                        Используй <b>Ластик</b>, чтобы удалить шар. <span class="text-blue-500 font-bold">Смотри AD</span>.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-  //top 3
-  minesFound += checkTile(r - 1, c - 1); //top left
-  minesFound += checkTile(r - 1, c); //top
-  minesFound += checkTile(r - 1, c + 1); //top right
+    <!-- Модалка Статистики -->
+    <div id="stats-modal" class="absolute inset-0 z-[60] bg-black/20 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-xs w-full shadow-2xl bounce-in">
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-[#776e65]">Статистика</h3>
+                <button onclick="ui.hideModal('stats-modal')" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5">
+                <div class="text-center mb-6">
+                    <div class="text-xs uppercase text-gray-400 mb-1">Рекорд очков</div>
+                    <div id="stat-high-score" class="text-4xl font-black text-[#edc22e] tracking-tight">0</div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-gray-50 p-3 rounded-xl text-center border border-gray-100">
+                        <div class="text-[10px] uppercase text-gray-400">Игры</div>
+                        <div id="stat-total-games" class="text-lg font-bold text-[#776e65]">0</div>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-xl text-center border border-gray-100">
+                        <div class="text-[10px] uppercase text-gray-400">Макс. Шар</div>
+                        <div id="stat-max-tile" class="text-lg font-bold text-[#f67c5f]">0</div>
+                    </div>
+                     <div class="bg-gray-50 p-3 rounded-xl text-center border border-gray-100">
+                        <div class="text-[10px] uppercase text-gray-400">Открыто</div>
+                        <div id="stat-unlocked-levels" class="text-lg font-bold text-[#8f7a66]">1/3</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-  //left and right
-  minesFound += checkTile(r, c - 1); //left
-  minesFound += checkTile(r, c + 1); //right
+    <script>
+        // --- КОНФИГУРАЦИЯ ---
+        const CONFIG = {
+            colors: {
+                2: "#eee4da", 4: "#ede0c8", 8: "#f2b179", 16: "#f59563",
+                32: "#f67c5f", 64: "#f65e3b", 128: "#edcf72", 256: "#edcc61",
+                512: "#edc850", 1024: "#edc53f", 2048: "#edc22e", 4096: "#3c3a32"
+            },
+            textColors: {
+                2: "#776e65", 4: "#776e65", 8: "#f9f6f2"
+            },
+            levels: [
+                { id: 'classic', name: 'Классика', scoreReq: 0, width: 340, desc: 'Стандартный размер' },
+                { id: 'narrow', name: 'Колба', scoreReq: 2000, width: 280, desc: 'Узкое пространство' },
+                { id: 'wide', name: 'Ванна', scoreReq: 5000, width: 390, desc: 'Широкий хаос' }
+            ]
+        };
 
-  //bottom 3
-  minesFound += checkTile(r + 1, c - 1); //bottom left
-  minesFound += checkTile(r + 1, c); //bottom
-  minesFound += checkTile(r + 1, c + 1); //bottom right
+        // --- VK ИНТЕГРАЦИЯ ---
+        let vkUserId = null;
+        
+        async function initVK() {
+            try {
+                const vkBridge = window.vkBridge;
+                if(vkBridge) {
+                    // Инициализация
+                    vkBridge.send('VKWebAppInit');
+                    
+                    // Получение пользователя
+                    try {
+                        const user = await vkBridge.send('VKWebAppGetUserInfo');
+                        vkUserId = user.id;
+                        console.log("VK User ID:", vkUserId);
+                    } catch (e) {
+                        console.warn("Ошибка получения VK User ID:", e);
+                    }
 
-  if (minesFound > 0) {
-    board[r][c].innerText = minesFound;
-    board[r][c].classList.add("x" + minesFound.toString());
-  } else {
-    board[r][c].innerText = "";
+                    // Показ баннера всегда и везде
+                    vkBridge.send('VKWebAppShowBannerAd', { banner_location: 'bottom' })
+                        .then((data) => { 
+                            if (data.result) console.log('Banner shown');
+                        })
+                        .catch((error) => console.log('Banner error', error));
+                }
+            } catch (e) {
+                console.error("VK Bridge error:", e);
+            }
+        }
 
-    //top 3
-    checkMine(r - 1, c - 1); //top left
-    checkMine(r - 1, c); //top
-    checkMine(r - 1, c + 1); //top right
+        // Показ Rewarded рекламы (Ластик)
+        async function showRewardedAd() {
+            if (!window.vkBridge) return true; // Если не в ВК, разрешаем действие
+            try {
+                const data = await window.vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' });
+                return data.result;
+            } catch (error) {
+                console.error("Rewarded ad error:", error);
+                return false;
+            }
+        }
 
-    //left and right
-    checkMine(r, c - 1); //left
-    checkMine(r, c + 1); //right
+        // Показ Interstitial рекламы (Проигрыш)
+        function showInterstitialAd() {
+            if (window.vkBridge) {
+                window.vkBridge.send('VKWebAppShowInterstitialAd')
+                    .catch(e => console.log("Interstitial error:", e));
+            }
+        }
 
-    //bottom 3
-    checkMine(r + 1, c - 1); //bottom left
-    checkMine(r + 1, c); //bottom
-    checkMine(r + 1, c + 1); //bottom right
-  }
+        class SoundManager {
+            constructor() {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                this.enabled = true;
+            }
+            playPop(value) {
+                if (!this.enabled) return;
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                const freq = 200 + (Math.log2(value) * 60);
+                osc.frequency.setValueAtTime(freq, t);
+                osc.frequency.exponentialRampToValueAtTime(freq + 150, t + 0.1);
+                gain.gain.setValueAtTime(0.15, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(t + 0.2);
+            }
+            playDelete() {
+                if (!this.enabled) return;
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.exponentialRampToValueAtTime(50, t + 0.3);
+                gain.gain.setValueAtTime(0.1, t);
+                gain.gain.linearRampToValueAtTime(0, t + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(t + 0.3);
+            }
+            playDrop() {
+                if (!this.enabled) return;
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.frequency.setValueAtTime(80, t);
+                gain.gain.setValueAtTime(0.05, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(t + 0.05);
+            }
+            resume() { if (this.ctx.state === 'suspended') this.ctx.resume(); }
+        }
 
-  if (tilesClicked == rows * columns - minesCount) {
-    document.getElementById("mines-count").innerText = "Cleared";
-    gameOver = true;
-  }
-}
+        class DataManager {
+            constructor() {
+                // Дефолтные данные
+                this.data = {
+                    highScore: 0, 
+                    totalGames: 0, 
+                    maxTile: 2, 
+                    unlockedLevels: ['classic']
+                };
+            }
 
-function checkTile(r, c) {
-  if (r < 0 || r >= rows || c < 0 || c >= columns) {
-    return 0;
-  }
-  if (minesLocation.includes(r.toString() + "-" + c.toString())) {
-    return 1;
-  }
-  return 0;
-}
+            // Асинхронная загрузка из ВК или LocalStorage
+            async load() {
+                if (vkUserId && window.vkBridge) {
+                    const key = `softdrop_data_${vkUserId}`;
+                    try {
+                        const response = await window.vkBridge.send('VKWebAppStorageGet', { keys: [key] });
+                        if (response.keys[0]?.value) {
+                            this.data = JSON.parse(response.keys[0].value);
+                            console.log("Data loaded from VK Storage");
+                        }
+                    } catch (error) {
+                        console.warn("VK Storage Get error, trying LocalStorage", error);
+                        this.loadFromLocal(key);
+                    }
+                } else {
+                    this.loadFromLocal('softdrop_v2_data');
+                }
+            }
+
+            loadFromLocal(key) {
+                const local = localStorage.getItem(key);
+                if (local) this.data = JSON.parse(local);
+            }
+
+            // Асинхронное сохранение
+            async save() {
+                const key = vkUserId ? `softdrop_data_${vkUserId}` : 'softdrop_v2_data';
+                const value = JSON.stringify(this.data);
+
+                // Всегда сохраняем локально как backup
+                localStorage.setItem(key, value);
+
+                if (vkUserId && window.vkBridge) {
+                    try {
+                        await window.vkBridge.send('VKWebAppStorageSet', { key: key, value: value });
+                    } catch (error) {
+                        console.warn("VK Storage Set error", error);
+                    }
+                }
+            }
+
+            updateScore(score, maxTile) {
+                if (score > this.data.highScore) this.data.highScore = score;
+                if (maxTile > this.data.maxTile) this.data.maxTile = maxTile;
+                
+                let unlocked = false;
+                CONFIG.levels.forEach(lvl => {
+                    if (score >= lvl.scoreReq && !this.data.unlockedLevels.includes(lvl.id)) {
+                        this.data.unlockedLevels.push(lvl.id);
+                        unlocked = true;
+                    }
+                });
+                if (unlocked) this.data.unlockedLevels.sort((a, b) => CONFIG.levels.find(l=>l.id===a).scoreReq - CONFIG.levels.find(l=>l.id===b).scoreReq);
+
+                this.save();
+            }
+            gameFinished() { this.data.totalGames++; this.save(); }
+        }
+
+        class Game {
+            constructor() {
+                this.engine = Matter.Engine.create({ enableSleeping: true });
+                this.runner = Matter.Runner.create();
+                this.renderCanvas = document.getElementById('world');
+                this.ctx = this.renderCanvas.getContext('2d');
+                
+                this.width = 340;
+                this.height = window.innerHeight * 0.75;
+                
+                this.score = 0;
+                this.isPlaying = false;
+                this.isPaused = false;
+                this.deleteMode = false;
+                
+                this.nextValue = 2;
+                this.currentBall = null;
+                
+                this.sound = new SoundManager();
+                this.data = new DataManager();
+                
+                window.addEventListener('resize', () => { if(this.isPlaying) this.resize(); });
+                
+                this.setupInput();
+                this.setupPhysicsEvents();
+            }
+
+            resize() {
+                const maxHeight = Math.min(window.innerHeight * 0.75, 800);
+                this.height = maxHeight;
+                
+                this.renderCanvas.width = this.width;
+                this.renderCanvas.height = this.height;
+                
+                document.getElementById('game-wrapper').style.width = `${this.width}px`;
+                
+                if (this.ground) {
+                    Matter.Body.setPosition(this.ground, { x: this.width/2, y: this.height + 50 });
+                }
+                
+                const dangerLine = document.getElementById('danger-line');
+                if (dangerLine) {
+                    dangerLine.style.top = `${this.height * 0.25}px`; 
+                }
+            }
+
+            start(levelId) {
+                const level = CONFIG.levels.find(l => l.id === levelId);
+                this.width = level.width;
+                this.resize();
+
+                Matter.World.clear(this.engine.world);
+                Matter.Engine.clear(this.engine);
+                
+                this.score = 0;
+                this.isPlaying = true;
+                this.isPaused = false;
+                this.deleteMode = false;
+                this.updateUI();
+                
+                this.leftWall = Matter.Bodies.rectangle(-50, this.height/2, 100, this.height * 3, { isStatic: true, friction: 0.1, restitution: 0.2 });
+                this.rightWall = Matter.Bodies.rectangle(this.width + 50, this.height/2, 100, this.height * 3, { isStatic: true, friction: 0.1, restitution: 0.2 });
+                this.ground = Matter.Bodies.rectangle(this.width/2, this.height + 50, this.width + 200, 100, { isStatic: true, friction: 0.1, restitution: 0.2 });
+                
+                Matter.World.add(this.engine.world, [this.ground, this.leftWall, this.rightWall]);
+
+                Matter.Runner.run(this.runner, this.engine);
+                this.sound.resume();
+                
+                this.spawnNextPreview();
+                this.loop();
+                
+                ui.showScreen('game');
+            }
+
+            spawnNextPreview() {
+                const r = Math.random();
+                if (r < 0.6) this.nextValue = 2;
+                else if (r < 0.85) this.nextValue = 4;
+                else if (r < 0.95) this.nextValue = 8;
+                else if (r < 0.99) this.nextValue = 16;
+                else this.nextValue = 32;
+
+                this.currentBall = {
+                    x: this.width / 2,
+                    y: 60,
+                    value: this.nextValue,
+                    radius: this.getRadius(this.nextValue)
+                };
+            }
+
+            dropBall() {
+                if (!this.currentBall || this.isPaused || !this.isPlaying || this.deleteMode) return;
+
+                const body = Matter.Bodies.circle(this.currentBall.x, this.currentBall.y, this.currentBall.radius, {
+                    restitution: 0.3,
+                    friction: 0.5,
+                    label: `ball-${this.currentBall.value}`
+                });
+                body.gameValue = this.currentBall.value;
+
+                Matter.World.add(this.engine.world, body);
+                this.sound.playDrop();
+
+                this.currentBall = null;
+                setTimeout(() => { if (this.isPlaying) this.spawnNextPreview(); }, 400);
+            }
+
+            getRadius(value) {
+                return 22 + (Math.log2(value) * 2.5); 
+            }
+
+            setupPhysicsEvents() {
+                Matter.Events.on(this.engine, 'collisionStart', (event) => {
+                    event.pairs.forEach((pair) => {
+                        const A = pair.bodyA;
+                        const B = pair.bodyB;
+                        if (A.isStatic || B.isStatic) return;
+                        
+                        if (A.gameValue === B.gameValue && !A.toRemove && !B.toRemove) {
+                            A.toRemove = true; B.toRemove = true;
+                            this.mergeBodies(A, B);
+                        }
+                    });
+                });
+
+                setInterval(() => { if(this.isPlaying && !this.isPaused) this.checkGameOver(); }, 1000);
+            }
+
+            mergeBodies(A, B) {
+                const newValue = A.gameValue * 2;
+                const midX = (A.position.x + B.position.x) / 2;
+                const midY = (A.position.y + B.position.y) / 2;
+
+                Matter.World.remove(this.engine.world, [A, B]);
+
+                const newRadius = this.getRadius(newValue);
+                const newBody = Matter.Bodies.circle(midX, midY, newRadius, {
+                    restitution: 0.3, friction: 0.5
+                });
+                newBody.gameValue = newValue;
+
+                Matter.World.add(this.engine.world, newBody);
+                
+                this.score += newValue;
+                this.sound.playPop(newValue);
+                this.updateUI();
+            }
+
+            checkGameOver() {
+                const dangerY = this.height * 0.25; 
+                let dangerCount = 0;
+                Matter.Composite.allBodies(this.engine.world).forEach(b => {
+                    if (!b.isStatic && b.position.y < dangerY && Math.abs(b.velocity.y) < 0.1) {
+                        dangerCount++;
+                    }
+                });
+
+                const line = document.getElementById('danger-line');
+                line.style.opacity = dangerCount > 0 ? '1' : '0';
+
+                // Если шары касаются самого верха - проигрыш
+                const topTouch = Matter.Composite.allBodies(this.engine.world).some(b => !b.isStatic && b.position.y - b.circleRadius <= 0);
+
+                if (dangerCount > 1 || topTouch) {
+                    setTimeout(() => {
+                       if(this.isPlaying && (document.getElementById('danger-line').style.opacity === '1' || topTouch)) {
+                           this.gameOver();
+                       }
+                    }, 1500);
+                }
+            }
+
+            setupInput() {
+                const getPos = (e) => {
+                    const rect = this.renderCanvas.getBoundingClientRect();
+                    let targetTouch = null;
+                    if (e.touches && e.touches.length > 0) targetTouch = e.touches[0];
+                    else if (e.changedTouches && e.changedTouches.length > 0) targetTouch = e.changedTouches[0];
+                    else targetTouch = e;
+
+                    const clientX = targetTouch.clientX;
+                    const clientY = targetTouch.clientY;
+                    return { x: clientX - rect.left, y: clientY - rect.top };
+                };
+
+                const handleMove = (pos) => {
+                    if (this.deleteMode) return;
+                    if (!this.currentBall || this.isPaused) return;
+                    const r = this.currentBall.radius;
+                    this.currentBall.x = Math.max(r, Math.min(this.width - r, pos.x));
+                };
+
+                const handleClick = (e) => {
+                    e.preventDefault();
+                    const pos = getPos(e); 
+                    if (this.deleteMode) this.tryDeleteAt(pos);
+                    else this.dropBall();
+                };
+
+                this.renderCanvas.addEventListener('mousemove', e => handleMove(getPos(e)));
+                this.renderCanvas.addEventListener('touchmove', e => { e.preventDefault(); handleMove(getPos(e)); }, { passive: false });
+                this.renderCanvas.addEventListener('mousedown', handleClick);
+                this.renderCanvas.addEventListener('touchend', handleClick);
+            }
+
+            // --- ЛОГИКА РЕКЛАМЫ И ЛАСТИКА ---
+            async tryActivateDelete() {
+                if (this.deleteMode) {
+                    // Если уже активен - выключаем
+                    this.toggleDeleteMode();
+                    return;
+                }
+
+                // Показываем рекламу
+                const success = await showRewardedAd();
+                if (success) {
+                    this.toggleDeleteMode();
+                }
+            }
+
+            toggleDeleteMode() {
+                this.deleteMode = !this.deleteMode;
+                const btn = document.getElementById('btn-delete');
+                const canvas = document.getElementById('world');
+                
+                if (this.deleteMode) {
+                    btn.classList.add('delete-active');
+                    canvas.classList.add('cursor-delete');
+                } else {
+                    btn.classList.remove('delete-active');
+                    canvas.classList.remove('cursor-delete');
+                }
+            }
+
+            tryDeleteAt(pos) {
+                const bodies = Matter.Composite.allBodies(this.engine.world);
+                const clickedBody = bodies.find(b => {
+                    if (b.isStatic) return false;
+                    const dx = b.position.x - pos.x;
+                    const dy = b.position.y - pos.y;
+                    return (dx*dx + dy*dy) < (b.circleRadius * b.circleRadius);
+                });
+
+                if (clickedBody) {
+                    Matter.World.remove(this.engine.world, clickedBody);
+                    this.sound.playDelete();
+                    this.toggleDeleteMode(); // Выключаем после одного использования
+                }
+            }
+
+            loop() {
+                if (!this.isPlaying) return;
+                requestAnimationFrame(() => this.loop());
+
+                this.ctx.fillStyle = "#CDC1B4";
+                this.ctx.fillRect(0, 0, this.width, this.height);
+
+                const bodies = Matter.Composite.allBodies(this.engine.world);
+                
+                bodies.forEach(body => {
+                    if (body.isStatic) return;
+                    const value = body.gameValue;
+                    const r = body.circleRadius - 1.5; 
+                    this.ctx.save();
+                    this.ctx.translate(body.position.x, body.position.y);
+                    this.ctx.rotate(body.angle);
+                    this.drawCircle(0, 0, r, value);
+                    this.ctx.restore();
+                });
+
+                if (this.currentBall && !this.deleteMode && !this.isPaused) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.currentBall.x, this.currentBall.y);
+                    this.ctx.lineTo(this.currentBall.x, this.height);
+                    this.ctx.strokeStyle = "rgba(255,255,255,0.3)";
+                    this.ctx.lineWidth = 2;
+                    this.ctx.setLineDash([6, 6]);
+                    this.ctx.stroke();
+                    this.ctx.setLineDash([]);
+                    this.drawCircle(this.currentBall.x, this.currentBall.y, this.currentBall.radius - 1.5, this.currentBall.value);
+                }
+                
+                if (this.deleteMode) {
+                    this.ctx.fillStyle = "rgba(0,0,0,0.2)";
+                    this.ctx.fillRect(0, 0, this.width, this.height);
+                    this.ctx.fillStyle = "#fff";
+                    this.ctx.font = "bold 18px Nunito";
+                    this.ctx.textAlign = "center";
+                    this.ctx.fillText("Нажми на шар, чтобы удалить", this.width/2, 120);
+                }
+            }
+
+            drawCircle(x, y, r, value) {
+                const color = CONFIG.colors[value] || "#3c3a32";
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, Math.max(0, r), 0, Math.PI * 2);
+                this.ctx.fillStyle = color;
+                this.ctx.fill();
+                const grad = this.ctx.createRadialGradient(x - r/3, y - r/3, r/6, x, y, r);
+                grad.addColorStop(0, "rgba(255,255,255,0.3)");
+                grad.addColorStop(1, "rgba(0,0,0,0)");
+                this.ctx.fillStyle = grad;
+                this.ctx.fill();
+                this.ctx.fillStyle = CONFIG.textColors[value] || "#f9f6f2";
+                this.ctx.font = `900 ${Math.max(10, r * 0.6)}px Nunito`;
+                this.ctx.textAlign = "center";
+                this.ctx.textBaseline = "middle";
+                this.ctx.fillText(value, x, y + 1);
+            }
+
+            togglePause() {
+                this.isPaused = !this.isPaused;
+                const screen = document.getElementById('pause-screen');
+                if (this.isPaused) {
+                    Matter.Runner.stop(this.runner);
+                    screen.classList.remove('hidden');
+                } else {
+                    Matter.Runner.run(this.runner, this.engine);
+                    screen.classList.add('hidden');
+                }
+            }
+
+            gameOver() {
+                this.isPlaying = false;
+                Matter.Runner.stop(this.runner);
+                
+                // Показ Interstitial рекламы при проигрыше
+                showInterstitialAd();
+
+                let max = 0;
+                Matter.Composite.allBodies(this.engine.world).forEach(b => { if(b.gameValue > max) max = b.gameValue; });
+                this.data.updateScore(this.score, max);
+                this.data.gameFinished();
+
+                document.getElementById('final-score').innerText = this.score;
+                document.getElementById('gameover-screen').classList.remove('hidden');
+            }
+
+            restart() {
+                document.getElementById('gameover-screen').classList.add('hidden');
+                document.getElementById('danger-line').style.opacity = 0;
+                const currentLevelId = CONFIG.levels.find(l => l.width === this.width).id;
+                this.start(currentLevelId);
+            }
+
+            quitToMenu() {
+                this.isPlaying = false;
+                Matter.Runner.stop(this.runner);
+                ui.showScreen('menu');
+            }
+
+            updateUI() {
+                document.getElementById('score-display').innerText = this.score;
+            }
+        }
+
+        const ui = {
+            screens: { menu: document.getElementById('main-menu'), game: document.getElementById('game-wrapper') },
+            init() {
+                this.renderLevelSelect();
+                document.getElementById('stat-total-games').innerText = dataManager.data.totalGames;
+                document.getElementById('stat-max-tile').innerText = dataManager.data.maxTile;
+                document.getElementById('stat-high-score').innerText = dataManager.data.highScore;
+                document.getElementById('stat-unlocked-levels').innerText = `${dataManager.data.unlockedLevels.length}/${CONFIG.levels.length}`;
+            },
+            renderLevelSelect() {
+                const container = document.getElementById('level-select');
+                container.innerHTML = '';
+                CONFIG.levels.forEach(lvl => {
+                    const isUnlocked = dataManager.data.unlockedLevels.includes(lvl.id);
+                    const div = document.createElement('div');
+                    let classes = "p-4 rounded-xl flex justify-between items-center cursor-pointer transition-all relative overflow-hidden ";
+                    classes += isUnlocked 
+                        ? "bg-white shadow hover:shadow-md border-l-4 border-[#edc22e]" 
+                        : "bg-gray-100 border-l-4 border-gray-300 locked";
+                    div.className = classes;
+                    div.onclick = () => { if(isUnlocked) game.start(lvl.id); };
+                    div.innerHTML = `
+                        <div>
+                            <div class="font-bold text-[#776e65]">${lvl.name}</div>
+                            <div class="text-xs text-gray-400">${lvl.desc}</div>
+                        </div>
+                        ${isUnlocked ? '<i class="fas fa-play text-[#edc22e]"></i>' : `<span class="text-[10px] font-bold text-white bg-gray-400 px-2 py-1 rounded">Счет: ${lvl.scoreReq}</span>`}
+                    `;
+                    container.appendChild(div);
+                });
+            },
+            showScreen(name) {
+                this.screens.menu.classList.add('hidden');
+                this.screens.game.classList.add('hidden');
+                document.getElementById('pause-screen').classList.add('hidden');
+                document.getElementById('gameover-screen').classList.add('hidden');
+                if (name === 'menu') { this.screens.menu.classList.remove('hidden'); this.init(); } 
+                else if (name === 'game') { this.screens.game.classList.remove('hidden'); }
+            },
+            showRules() { document.getElementById('rules-modal').classList.remove('hidden'); },
+            showStats() { this.init(); document.getElementById('stats-modal').classList.remove('hidden'); },
+            hideModal(id) { document.getElementById(id).classList.add('hidden'); }
+        };
+
+        const dataManager = new DataManager();
+        const game = new Game();
+        
+        window.onload = async () => {
+            // Инициализация VK перед загрузкой данных
+            await initVK();
+            // Загрузка данных (асинхронно из VK Storage или LocalStorage)
+            await dataManager.load();
+            
+            ui.init();
+            game.resize(); 
+        };
+
+    </script>
+</body>
+</html>
