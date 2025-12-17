@@ -23,7 +23,7 @@
             --score-bg: #cdc1b4;
             --score-text: #eee4da;
             --canvas-bg: #CDC1B4;
-            --modal-bg: rgba(250, 248, 239, 0.95);
+            --modal-bg: rgba(250, 248, 239, 0.98);
             --modal-shadow: rgba(0,0,0,0.15);
             --btn-bg: #faf8ef;
             --btn-text: #776e65;
@@ -39,7 +39,7 @@
             --score-bg: #4b5563;
             --score-text: #e5e7eb;
             --canvas-bg: #1f2937;
-            --modal-bg: rgba(17, 24, 39, 0.95);
+            --modal-bg: rgba(17, 24, 39, 0.98);
             --modal-shadow: rgba(0,0,0,0.5);
             --btn-bg: #374151;
             --btn-text: #e5e7eb;
@@ -71,7 +71,7 @@
 
         #game-wrapper {
             position: relative;
-            width: 340px; /* Фиксируем ширину контейнера как просили */
+            width: 340px;
             display: flex;
             flex-direction: column;
             filter: drop-shadow(0 10px 20px var(--modal-shadow));
@@ -86,9 +86,9 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            z-index: 20; /* Поднимаем выше канваса */
+            z-index: 20;
             transition: background 0.3s;
-            position: relative; 
+            position: relative;
         }
 
         .score-box {
@@ -110,6 +110,7 @@
             background: var(--canvas-bg);
             transition: background 0.3s;
             z-index: 10;
+            width: 100%;
         }
 
         .control-btn {
@@ -127,7 +128,7 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             position: relative;
             overflow: visible;
-            pointer-events: auto; /* Гарантируем кликабельность */
+            pointer-events: auto;
         }
         .control-btn:active { transform: scale(0.95); }
         
@@ -156,7 +157,6 @@
             align-items: center; justify-content: center;
         }
 
-        /* Анимация правил */
         .tutorial-container {
             position: relative; width: 120px; height: 160px;
             background: rgba(0,0,0,0.05); border-radius: 12px;
@@ -197,24 +197,20 @@
         @keyframes showResult { 0%, 49% { opacity: 0; transform: scale(0.5); } 50% { opacity: 1; transform: scale(1.2); } 60% { transform: scale(1); } 85% { opacity: 1; } 90% { opacity: 0; } 100% { opacity: 0; } }
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7); } 100% { box-shadow: 0 0 0 10px rgba(255, 107, 107, 0); } }
 
-        /* Таблица статистики */
         .stats-table {
             width: 100%;
             border-collapse: collapse;
             font-size: 0.9rem;
             color: var(--text-color);
         }
-        .stats-table th { text-align: left; padding: 8px; border-bottom: 2px solid var(--card-border); opacity: 0.6; font-size: 0.75rem; uppercase; }
+        .stats-table th { text-align: left; padding: 8px; border-bottom: 2px solid var(--card-border); opacity: 0.6; font-size: 0.75rem; text-transform: uppercase; }
         .stats-table td { padding: 8px; border-bottom: 1px solid var(--card-border); font-weight: bold; }
         .stats-table tr:last-child td { border-bottom: none; }
     </style>
 </head>
 <body>
 
-    <!-- Обертка игры -->
     <div id="game-wrapper" class="hidden">
-        
-        <!-- Шапка -->
         <div id="game-header">
             <div class="score-box">
                 <span class="text-[10px] font-bold uppercase tracking-wider opacity-70">Счет</span>
@@ -227,7 +223,8 @@
                     <i class="fas fa-eraser"></i>
                 </button>
 
-                <button onclick="game.sound.playClick(); game.togglePause()" class="control-btn" title="Пауза">
+                <!-- Пауза кнопка с прямым вызовом UI -->
+                <button id="btn-pause" onclick="ui.togglePause()" class="control-btn" title="Пауза">
                     <i class="fas fa-pause"></i>
                 </button>
             </div>
@@ -243,8 +240,8 @@
         <div id="pause-screen" class="absolute inset-0 z-40 hidden flex flex-col items-center justify-center rounded-xl bounce-in" style="background: var(--modal-bg); backdrop-filter: blur(5px);">
             <h2 class="text-3xl font-black mb-6" style="color: var(--text-color);">Пауза</h2>
             <div class="w-48 space-y-3">
-                <button onclick="game.sound.playClick(); game.togglePause()" class="w-full bg-[#edc22e] text-white py-3 rounded-lg font-bold shadow-md menu-btn">Продолжить</button>
-                <button onclick="game.sound.playClick(); game.quitToMenu()" class="w-full bg-[#8f7a66] text-white py-3 rounded-lg font-bold shadow-md menu-btn">Меню</button>
+                <button id="btn-resume" onclick="ui.togglePause()" class="w-full bg-[#edc22e] text-white py-3 rounded-lg font-bold shadow-md menu-btn">Продолжить</button>
+                <button id="btn-menu-pause" onclick="game.quitToMenu()" class="w-full bg-[#8f7a66] text-white py-3 rounded-lg font-bold shadow-md menu-btn">Меню</button>
             </div>
         </div>
 
@@ -301,7 +298,7 @@
         </div>
     </div>
 
-    <!-- Настройки -->
+    <!-- Модалки -->
     <div id="settings-modal" class="menu-modal hidden">
         <div class="rounded-2xl max-w-xs w-full shadow-2xl bounce-in p-6" style="background: var(--card-bg);">
             <div class="flex justify-between items-center mb-6">
@@ -321,7 +318,6 @@
         </div>
     </div>
 
-    <!-- Правила -->
     <div id="rules-modal" class="menu-modal hidden">
         <div class="rounded-2xl max-w-xs w-full shadow-2xl bounce-in p-5" style="background: var(--card-bg);">
             <div class="flex justify-between items-center mb-4 border-b pb-2" style="border-color: var(--card-border);">
@@ -351,7 +347,6 @@
         </div>
     </div>
 
-    <!-- Статистика -->
     <div id="stats-modal" class="menu-modal hidden">
         <div class="rounded-2xl max-w-md w-full shadow-2xl bounce-in p-5" style="background: var(--card-bg);">
             <div class="flex justify-between items-center mb-4 border-b pb-2" style="border-color: var(--card-border);">
@@ -359,16 +354,8 @@
                 <button onclick="game.sound.playClick(); ui.hideModal('stats-modal')" class="opacity-50 hover:opacity-100" style="color: var(--text-color);"><i class="fas fa-times"></i></button>
             </div>
             <table class="stats-table">
-                <thead>
-                    <tr>
-                        <th>Режим</th>
-                        <th>Рекорд</th>
-                        <th>Макс. Шар</th>
-                    </tr>
-                </thead>
-                <tbody id="stats-table-body">
-                    <!-- Заполняется JS -->
-                </tbody>
+                <thead><tr><th>Режим</th><th>Рекорд</th><th>Макс. Шар</th></tr></thead>
+                <tbody id="stats-table-body"></tbody>
             </table>
         </div>
     </div>
@@ -381,11 +368,10 @@
                 512: "#edc850", 1024: "#edc53f", 2048: "#edc22e", 4096: "#3c3a32"
             },
             textColors: { 2: "#776e65", 4: "#776e65", 8: "#f9f6f2" },
-            // ВЕЗДЕ ШИРИНА 340
             levels: [
-                { id: 'classic', name: 'Классика', scoreReq: 0, width: 340, desc: 'Шары', type: 'circle' },
-                { id: 'squares', name: 'Кубизм', scoreReq: 2000, width: 340, desc: 'Квадраты', type: 'square' },
-                { id: 'chaos', name: 'Хаос', scoreReq: 5000, width: 340, desc: 'Разные формы', type: 'chaos' }
+                { id: 'classic', name: 'Классика', scoreReq: 0, width: 340, desc: 'Шары', type: 'circle', icon: '<i class="fas fa-circle"></i>' },
+                { id: 'squares', name: 'Кубизм', scoreReq: 2000, width: 340, desc: 'Квадраты', type: 'square', icon: '<i class="fas fa-square"></i>' },
+                { id: 'chaos', name: 'Хаос', scoreReq: 5000, width: 340, desc: 'Геометрия', type: 'chaos', icon: '<i class="fas fa-shapes"></i>' }
             ]
         };
 
@@ -442,12 +428,7 @@
         class DataManager {
             constructor() {
                 this.data = {
-                    // Статистика теперь объект по режимам
-                    stats: {
-                        classic: { highScore: 0, maxTile: 2 },
-                        squares: { highScore: 0, maxTile: 2 },
-                        chaos: { highScore: 0, maxTile: 2 }
-                    },
+                    stats: { classic: { highScore: 0, maxTile: 2 }, squares: { highScore: 0, maxTile: 2 }, chaos: { highScore: 0, maxTile: 2 } },
                     unlockedLevels: ['classic', 'squares', 'chaos'], 
                     theme: 'light', sound: true, savedGame: null
                 };
@@ -464,7 +445,6 @@
                 this.applySettings();
             }
             mergeData(loaded) {
-                // Аккуратное слияние, чтобы не затереть структуру stats если версия обновилась
                 if(loaded.stats) this.data.stats = { ...this.data.stats, ...loaded.stats };
                 if(loaded.unlockedLevels) this.data.unlockedLevels = loaded.unlockedLevels;
                 if(loaded.theme) this.data.theme = loaded.theme;
@@ -480,7 +460,6 @@
             }
             saveGame(gameState) { this.data.savedGame = gameState; this.save(); ui.updateContinueButton(); }
             clearSavedGame() { this.data.savedGame = null; this.save(); ui.updateContinueButton(); }
-            
             updateScore(levelId, score, maxTile) {
                 if (!this.data.stats[levelId]) this.data.stats[levelId] = { highScore: 0, maxTile: 2 };
                 const s = this.data.stats[levelId];
@@ -488,7 +467,6 @@
                 if (maxTile > s.maxTile) s.maxTile = maxTile;
                 this.save();
             }
-            
             toggleTheme() { this.data.theme = this.data.theme === 'light' ? 'dark' : 'light'; this.applySettings(); this.save(); return this.data.theme; }
             toggleSound() { this.data.sound = !this.data.sound; this.applySettings(); this.save(); return this.data.sound; }
             applySettings() {
@@ -500,7 +478,12 @@
         // --- GAME ENGINE ---
         class Game {
             constructor() {
-                this.engine = Matter.Engine.create({ enableSleeping: false });
+                // positionIterations и velocityIterations увеличены для стабильности физики
+                this.engine = Matter.Engine.create({ 
+                    enableSleeping: false,
+                    positionIterations: 8,
+                    velocityIterations: 8 
+                });
                 this.runner = Matter.Runner.create();
                 this.renderCanvas = document.getElementById('world');
                 this.ctx = this.renderCanvas.getContext('2d');
@@ -519,8 +502,7 @@
                 this.height = Math.min(window.innerHeight * 0.75, 800);
                 this.renderCanvas.width = this.width;
                 this.renderCanvas.height = this.height;
-                // Не меняем ширину wrapper динамически, она фиксирована CSS для выравнивания
-                
+                document.getElementById('game-wrapper').style.width = `${this.width}px`;
                 if (this.ground) Matter.Body.setPosition(this.ground, { x: this.width/2, y: this.height + 50 });
                 const dangerLine = document.getElementById('danger-line');
                 if (dangerLine) dangerLine.style.top = `${this.height * 0.25}px`; 
@@ -529,47 +511,37 @@
             createBody(x, y, value, isStatic = false) {
                 const levelType = CONFIG.levels.find(l => l.id === this.currentLevelId).type;
                 let body;
-                // Размер зависит от значения
                 const baseSize = 22 + (Math.log2(value) * 2.5);
                 
+                const opts = {
+                    restitution: 0.2,
+                    friction: 0.5,
+                    frictionStatic: 0.5,
+                    density: 0.002,
+                    label: `body-${value}`,
+                    isStatic: isStatic,
+                    slop: 0.01 // Минимальное проникновение, чтобы текстуры не "залазили"
+                };
+
                 let shape = 'circle';
                 if (levelType === 'square') shape = 'rectangle';
                 else if (levelType === 'chaos') {
-                    // 2: Круг, 4: Квадрат, 8: Треугольник, 16+: Шестиугольник
                     if (value === 2) shape = 'circle';
                     else if (value === 4) shape = 'rectangle';
                     else if (value === 8) shape = 'triangle';
                     else shape = 'hexagon';
                 }
 
-                const opts = {
-                    restitution: 0.2,
-                    friction: 0.5,
-                    frictionStatic: 0.5, // Чтобы не скользили слишком сильно
-                    label: `body-${value}`,
-                    isStatic: isStatic
-                };
-
-                // ВАЖНО: сохраняем размер для отрисовки, чтобы фигуры не "дышали"
-                // Для квадрата и круга размеры сопоставимы
                 if (shape === 'rectangle') {
-                    // Квадрат. Ширина = baseSize * 1.8
                     const w = baseSize * 1.8;
-                    // chamfer: { radius: 0 } убирает скругление, чтобы не было зазоров
-                    body = Matter.Bodies.rectangle(x, y, w, w, { ...opts, chamfer: { radius: 2 } });
-                    body.gameSize = w / 2; // Радиус для отрисовки (половина ширины)
+                    body = Matter.Bodies.rectangle(x, y, w, w, { ...opts, chamfer: { radius: 3 } });
                 } else if (shape === 'triangle') {
-                    // Треугольник (3 стороны)
-                    body = Matter.Bodies.polygon(x, y, 3, baseSize * 1.2, opts);
-                    body.gameSize = baseSize * 1.2;
+                    // Используем chamfer для сглаживания углов, чтобы не стоял на острие
+                    body = Matter.Bodies.polygon(x, y, 3, baseSize * 1.2, { ...opts, chamfer: { radius: 5 } });
                 } else if (shape === 'hexagon') {
-                    // Шестиугольник (6 сторон)
-                    body = Matter.Bodies.polygon(x, y, 6, baseSize, opts);
-                    body.gameSize = baseSize;
+                    body = Matter.Bodies.polygon(x, y, 6, baseSize, { ...opts, chamfer: { radius: 4 }, angle: Math.PI/6 });
                 } else {
-                    // Круг
                     body = Matter.Bodies.circle(x, y, baseSize, opts);
-                    body.gameSize = baseSize;
                 }
 
                 body.gameShape = shape;
@@ -579,7 +551,6 @@
 
             start(levelId, loadFromSave = false) {
                 this.currentLevelId = levelId;
-                // Ширина всегда 340
                 this.width = 340;
                 this.resize();
 
@@ -639,10 +610,10 @@
                     else if (r < 0.95) this.nextValue = 8; else this.nextValue = 16;
                 }
                 this.currentBall = { x: this.width / 2, y: 60, value: this.nextValue };
-                // Создаем временное тело, чтобы узнать его параметры
+                
                 const temp = this.createBody(0,0,this.nextValue);
                 this.currentBall.shape = temp.gameShape;
-                this.currentBall.size = temp.gameSize;
+                this.currentBall.previewBody = temp; 
             }
 
             dropBall() {
@@ -705,13 +676,12 @@
                 };
                 const handleMove = (pos) => {
                     if (this.deleteMode || !this.currentBall || this.isPaused) return;
-                    // Ограничение движения спавнера
-                    const r = this.currentBall.size; 
-                    this.currentBall.x = Math.max(r, Math.min(this.width - r, pos.x));
+                    // Для превью используем примерный радиус bounding box
+                    const bb = this.currentBall.previewBody.bounds;
+                    const halfW = (bb.max.x - bb.min.x) / 2;
+                    this.currentBall.x = Math.max(halfW, Math.min(this.width - halfW, pos.x));
                 };
                 const handleClick = (e) => {
-                    // Проверка: если клик был по кнопкам хедера (они выше канваса), не реагируем
-                    // Но хедер не над канвасом, а рядом. 
                     e.preventDefault();
                     if (this.deleteMode) this.tryDeleteAt(getPos(e)); else this.dropBall();
                 };
@@ -722,6 +692,11 @@
             }
 
             async tryActivateDelete() {
+                game.sound.playClick();
+                // Проверка на наличие тел (кроме стен)
+                const bodies = Matter.Composite.allBodies(this.engine.world).filter(b => !b.isStatic);
+                if (bodies.length === 0) return; // Пусто - не активируем
+
                 if (this.deleteMode) { this.toggleDeleteMode(); return; }
                 const success = await showRewardedAd();
                 if (success) this.toggleDeleteMode();
@@ -758,14 +733,10 @@
                 this.ctx.fillRect(0, 0, this.width, this.height);
 
                 const bodies = Matter.Composite.allBodies(this.engine.world);
+                
                 bodies.forEach(body => {
                     if (body.isStatic) return;
-                    this.ctx.save();
-                    this.ctx.translate(body.position.x, body.position.y);
-                    this.ctx.rotate(body.angle);
-                    // Используем gameSize вместо bounds, чтобы не "дышало"
-                    this.drawBody(body.gameShape, body.gameSize, body.gameValue);
-                    this.ctx.restore();
+                    this.drawBodyFromVertices(body);
                 });
 
                 if (this.currentBall && !this.deleteMode && !this.isPaused) {
@@ -777,7 +748,24 @@
                     this.ctx.setLineDash([6, 6]);
                     this.ctx.stroke();
                     this.ctx.setLineDash([]);
-                    this.drawBody(this.currentBall.shape, this.currentBall.size, this.currentBall.value, this.currentBall.x, this.currentBall.y);
+                    
+                    this.ctx.save();
+                    this.ctx.translate(this.currentBall.x, this.currentBall.y);
+                    if (this.currentBall.previewBody.angle) this.ctx.rotate(this.currentBall.previewBody.angle);
+                    
+                    const b = this.currentBall.previewBody;
+                    // Хак для отрисовки превью:
+                    const originalPos = { x: b.position.x, y: b.position.y };
+                    Matter.Body.setPosition(b, { x: this.currentBall.x, y: this.currentBall.y });
+                    // Для превью используем 0,0 т.к. мы в translate контексте
+                    // Но drawBodyFromVertices использует мировые координаты вершин.
+                    // Поэтому просто сдвигаем тело туда и рисуем. 
+                    // НО! Мы уже сделали translate ctx.
+                    // Лучше не делать ctx.translate, а просто сдвинуть тело и нарисовать.
+                    this.ctx.restore(); // Отменяем translate чтобы рисовать в мировых
+                    
+                    this.drawBodyFromVertices(b);
+                    Matter.Body.setPosition(b, originalPos);
                 }
                 
                 if (this.deleteMode) {
@@ -790,49 +778,47 @@
                 }
             }
 
-            drawBody(shape, size, value, x=0, y=0) {
+            drawBodyFromVertices(body) {
+                const value = body.gameValue;
                 const color = CONFIG.colors[value] || "#3c3a32";
-                this.ctx.fillStyle = color;
+                
                 this.ctx.beginPath();
-                
-                if (shape === 'rectangle') {
-                    // size - это половина ширины (gameSize)
-                    const w = size * 2;
-                    this.ctx.roundRect(x - size, y - size, w, w, 2);
-                } else if (shape === 'triangle') {
-                    // Рисуем треугольник
-                    const h = size * Math.sqrt(3) / 2;
-                    this.ctx.moveTo(x, y - size);
-                    this.ctx.lineTo(x + size * Math.sin(2 * Math.PI / 3), y - size * Math.cos(2 * Math.PI / 3));
-                    this.ctx.lineTo(x + size * Math.sin(4 * Math.PI / 3), y - size * Math.cos(4 * Math.PI / 3));
-                    this.ctx.closePath();
-                } else if (shape === 'hexagon') {
-                     // Рисуем шестиугольник
-                    for (let i = 0; i < 6; i++) {
-                        const angle = i * 2 * Math.PI / 6;
-                        const px = x + size * Math.cos(angle);
-                        const py = y + size * Math.sin(angle);
-                        if (i === 0) this.ctx.moveTo(px, py); else this.ctx.lineTo(px, py);
-                    }
-                    this.ctx.closePath();
-                } else {
-                    this.ctx.arc(x, y, size, 0, Math.PI * 2);
+                const vertices = body.vertices;
+                this.ctx.moveTo(vertices[0].x, vertices[0].y);
+                for (let j = 1; j < vertices.length; j += 1) {
+                    this.ctx.lineTo(vertices[j].x, vertices[j].y);
                 }
-                
-                this.ctx.fill();
+                this.ctx.lineTo(vertices[0].x, vertices[0].y);
+                this.ctx.closePath();
 
-                // Блик
-                const grad = this.ctx.createRadialGradient(x - size/3, y - size/3, size/6, x, y, size);
-                grad.addColorStop(0, "rgba(255,255,255,0.4)");
-                grad.addColorStop(1, "rgba(0,0,0,0)");
-                this.ctx.fillStyle = grad;
+                this.ctx.fillStyle = color;
                 this.ctx.fill();
+                
+                this.ctx.strokeStyle = "rgba(0,0,0,0.1)";
+                this.ctx.lineWidth = 1;
+                this.ctx.stroke();
 
                 this.ctx.fillStyle = CONFIG.textColors[value] || "#f9f6f2";
-                this.ctx.font = `900 ${Math.max(10, size * 0.7)}px Nunito`;
+                // Адаптивный размер шрифта
+                const bb = body.bounds;
+                const h = bb.max.y - bb.min.y;
+                const fontSize = Math.max(12, h * 0.35); 
+                this.ctx.font = `900 ${fontSize}px Nunito`;
                 this.ctx.textAlign = "center";
                 this.ctx.textBaseline = "middle";
-                this.ctx.fillText(value, x, y + 1);
+                this.ctx.fillText(value, body.position.x, body.position.y);
+            }
+
+            togglePause() {
+                this.isPaused = !this.isPaused;
+                const screen = document.getElementById('pause-screen');
+                if (this.isPaused) { 
+                    Matter.Runner.stop(this.runner); 
+                    screen.classList.remove('hidden'); 
+                } else { 
+                    Matter.Runner.run(this.runner, this.engine); 
+                    screen.classList.add('hidden'); 
+                }
             }
 
             gameOver() {
@@ -842,21 +828,22 @@
                 
                 let max = 0;
                 Matter.Composite.allBodies(this.engine.world).forEach(b => { if(b.gameValue > max) max = b.gameValue; });
-                
                 this.data.updateScore(this.currentLevelId, this.score, max);
-                this.data.clearSavedGame(); // Очищаем сейв при проигрыше
+                this.data.clearSavedGame();
 
                 document.getElementById('final-score').innerText = this.score;
                 document.getElementById('gameover-screen').classList.remove('hidden');
             }
 
             restart() {
+                game.sound.playClick();
                 document.getElementById('gameover-screen').classList.add('hidden');
                 document.getElementById('danger-line').style.opacity = 0;
                 this.start(this.currentLevelId);
             }
 
             quitToMenu() {
+                game.sound.playClick();
                 this.saveState();
                 this.isPlaying = false;
                 Matter.Runner.stop(this.runner);
@@ -883,19 +870,9 @@
                 const tbody = document.getElementById('stats-table-body');
                 tbody.innerHTML = '';
                 const stats = game.data.data.stats;
-                
                 CONFIG.levels.forEach(lvl => {
-                    const row = document.createElement('tr');
-                    const lvlStats = stats[lvl.id] || { highScore: 0, maxTile: 0 };
-                    
-                    row.innerHTML = `
-                        <td>
-                            <div class="text-xs uppercase opacity-60">${lvl.name}</div>
-                        </td>
-                        <td class="text-[#edc22e] text-lg">${lvlStats.highScore}</td>
-                        <td class="text-[#f67c5f]">${lvlStats.maxTile > 2 ? lvlStats.maxTile : '-'}</td>
-                    `;
-                    tbody.appendChild(row);
+                    const s = stats[lvl.id] || { highScore: 0, maxTile: 0 };
+                    tbody.innerHTML += `<tr><td><div class="text-xs uppercase opacity-60">${lvl.name}</div></td><td class="text-[#edc22e] text-lg">${s.highScore}</td><td class="text-[#f67c5f]">${s.maxTile > 2 ? s.maxTile : '-'}</td></tr>`;
                 });
             },
 
@@ -903,10 +880,8 @@
                 const d = game.data.data;
                 const themeBtn = document.getElementById('theme-btn');
                 const soundBtn = document.getElementById('sound-btn');
-                
                 themeBtn.innerText = d.theme === 'light' ? 'Светлая' : 'Темная';
                 themeBtn.className = `px-4 py-2 rounded-lg font-bold text-white transition-colors ${d.theme === 'light' ? 'bg-[#8f7a66]' : 'bg-gray-600'}`;
-                
                 soundBtn.innerText = d.sound ? 'ВКЛ' : 'ВЫКЛ';
                 soundBtn.className = `px-4 py-2 rounded-lg font-bold text-white transition-colors ${d.sound ? 'bg-[#22c55e]' : 'bg-red-500'}`;
             },
@@ -918,21 +893,12 @@
                     const isUnlocked = game.data.data.unlockedLevels.includes(lvl.id);
                     const div = document.createElement('div');
                     let classes = "p-4 rounded-xl flex justify-between items-center cursor-pointer transition-all relative overflow-hidden ";
-                    classes += isUnlocked 
-                        ? "shadow hover:shadow-md border-l-4 border-[#edc22e]" 
-                        : "opacity-60 border-l-4 border-gray-300 locked";
+                    classes += isUnlocked ? "shadow hover:shadow-md border-l-4 border-[#edc22e]" : "opacity-60 border-l-4 border-gray-300 locked";
                     div.style.background = isUnlocked ? "var(--card-bg)" : "var(--card-locked)";
                     div.style.color = "var(--text-color)";
-                    
                     div.className = classes;
                     div.onclick = () => { if(isUnlocked) { game.sound.playClick(); game.start(lvl.id); } };
-                    div.innerHTML = `
-                        <div>
-                            <div class="font-bold">${lvl.name}</div>
-                            <div class="text-xs opacity-70">${lvl.desc}</div>
-                        </div>
-                        ${isUnlocked ? '<i class="fas fa-play text-[#edc22e]"></i>' : `<span class="text-[10px] font-bold text-white bg-gray-400 px-2 py-1 rounded">Счет: ${lvl.scoreReq}</span>`}
-                    `;
+                    div.innerHTML = `<div><div class="font-bold">${lvl.name}</div><div class="text-xs opacity-70">${lvl.desc}</div></div>${isUnlocked ? '<i class="fas fa-play text-[#edc22e]"></i>' : `<span class="text-[10px] font-bold text-white bg-gray-400 px-2 py-1 rounded">Счет: ${lvl.scoreReq}</span>`}`;
                     container.appendChild(div);
                 });
             },
@@ -950,7 +916,8 @@
             showSettings() { document.getElementById('settings-modal').classList.remove('hidden'); this.updateSettingsUI(); },
             showRules() { document.getElementById('rules-modal').classList.remove('hidden'); },
             showStats() { this.updateStatsTable(); document.getElementById('stats-modal').classList.remove('hidden'); },
-            hideModal(id) { document.getElementById(id).classList.add('hidden'); }
+            hideModal(id) { document.getElementById(id).classList.add('hidden'); },
+            togglePause() { game.sound.playClick(); game.togglePause(); }
         };
 
         const game = new Game(); 
