@@ -147,6 +147,11 @@
             border: 2px solid var(--bg-color);
             line-height: 1;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: background-color 0.3s;
+        }
+        /* Стиль для плашки, когда есть бесплатные попытки */
+        .ad-badge.free-uses {
+            background-color: #22c55e;
         }
 
         .menu-modal {
@@ -219,11 +224,11 @@
 
             <div class="flex gap-3">
                 <button id="btn-delete" onclick="game.sound.playClick(); game.tryActivateDelete()" class="control-btn" title="Удалить шар">
-                    <div class="ad-badge">AD</div>
+                    <div id="delete-badge" class="ad-badge">3</div>
                     <i class="fas fa-eraser"></i>
                 </button>
 
-                <!-- Пауза кнопка с прямым вызовом UI -->
+                <!-- Пауза -->
                 <button id="btn-pause" onclick="ui.togglePause()" class="control-btn" title="Пауза">
                     <i class="fas fa-pause"></i>
                 </button>
@@ -375,7 +380,6 @@
             ]
         };
 
-        // --- VK ---
         let vkUserId = null;
         async function initVK() {
             try {
@@ -397,7 +401,6 @@
             if (window.vkBridge) window.vkBridge.send('VKWebAppShowInterstitialAd').catch(()=>{});
         }
 
-        // --- AUDIO ---
         class SoundManager {
             constructor() {
                 this.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -424,7 +427,6 @@
             toggle(state) { this.enabled = state; }
         }
 
-        // --- DATA ---
         class DataManager {
             constructor() {
                 this.data = {
@@ -475,10 +477,8 @@
             }
         }
 
-        // --- GAME ENGINE ---
         class Game {
             constructor() {
-                // positionIterations и velocityIterations увеличены для стабильности физики
                 this.engine = Matter.Engine.create({ 
                     enableSleeping: false,
                     positionIterations: 8,
@@ -491,6 +491,7 @@
                 this.score = 0;
                 this.isPlaying = false;
                 this.currentLevelId = 'classic';
+                this.freeDeletes = 3; // Initial free uses
                 this.sound = new SoundManager();
                 this.data = new DataManager();
                 window.addEventListener('resize', () => { if(this.isPlaying) this.resize(); });
@@ -520,24 +521,25 @@
                     density: 0.002,
                     label: `body-${value}`,
                     isStatic: isStatic,
-                    slop: 0.01 // Минимальное проникновение, чтобы текстуры не "залазили"
+                    slop: 0.01
                 };
 
                 let shape = 'circle';
                 if (levelType === 'square') shape = 'rectangle';
                 else if (levelType === 'chaos') {
-                    if (value === 2) shape = 'circle';
-                    else if (value === 4) shape = 'rectangle';
-                    else if (value === 8) shape = 'triangle';
-                    else shape = 'hexagon';
+                    // Cyclic shapes: 2^1 (0), 2^2 (1), 2^3 (2), 2^4 (3), 2^5 (0)...
+                    const power = Math.round(Math.log2(value));
+                    const shapeIndex = (power - 1) % 4;
+                    const shapes = ['circle', 'rectangle', 'triangle', 'hexagon'];
+                    shape = shapes[shapeIndex];
                 }
 
                 if (shape === 'rectangle') {
                     const w = baseSize * 1.8;
                     body = Matter.Bodies.rectangle(x, y, w, w, { ...opts, chamfer: { radius: 3 } });
                 } else if (shape === 'triangle') {
-                    // Используем chamfer для сглаживания углов, чтобы не стоял на острие
-                    body = Matter.Bodies.polygon(x, y, 3, baseSize * 1.2, { ...opts, chamfer: { radius: 5 } });
+                    // Triangle rotated -PI/2 (point up)
+                    body = Matter.Bodies.polygon(x, y, 3, baseSize * 1.2, { ...opts, chamfer: { radius: 5 }, angle: -Math.PI/2 });
                 } else if (shape === 'hexagon') {
                     body = Matter.Bodies.polygon(x, y, 6, baseSize, { ...opts, chamfer: { radius: 4 }, angle: Math.PI/6 });
                 } else {
@@ -562,6 +564,11 @@
                 this.isPaused = false;
                 this.deleteMode = false;
                 
+                // Reset free deletes for a fresh start unless loaded
+                if (!loadFromSave) {
+                    this.freeDeletes = 3;
+                }
+                
                 this.leftWall = Matter.Bodies.rectangle(-50, this.height/2, 100, this.height * 3, { isStatic: true, friction: 0 });
                 this.rightWall = Matter.Bodies.rectangle(this.width + 50, this.height/2, 100, this.height * 3, { isStatic: true, friction: 0 });
                 this.ground = Matter.Bodies.rectangle(this.width/2, this.height + 50, this.width + 200, 100, { isStatic: true, friction: 0.5 });
@@ -584,6 +591,8 @@
                 this.score = saveData.score;
                 this.currentLevelId = saveData.levelId;
                 this.nextValue = saveData.nextValue;
+                this.freeDeletes = (saveData.freeDeletes !== undefined) ? saveData.freeDeletes : 3;
+                
                 saveData.bodies.forEach(b => {
                     const body = this.createBody(b.x, b.y, b.value);
                     Matter.Body.setAngle(body, b.angle);
@@ -597,7 +606,13 @@
                 const bodies = Matter.Composite.allBodies(this.engine.world)
                     .filter(b => !b.isStatic && b.gameValue)
                     .map(b => ({ x: b.position.x, y: b.position.y, angle: b.angle, value: b.gameValue }));
-                this.data.saveGame({ levelId: this.currentLevelId, score: this.score, nextValue: this.nextValue, bodies: bodies });
+                this.data.saveGame({ 
+                    levelId: this.currentLevelId, 
+                    score: this.score, 
+                    nextValue: this.nextValue, 
+                    bodies: bodies,
+                    freeDeletes: this.freeDeletes 
+                });
             }
             
             loadAndContinue() { if (this.data.data.savedGame) this.start(this.data.data.savedGame.levelId, true); }
@@ -693,13 +708,24 @@
 
             async tryActivateDelete() {
                 game.sound.playClick();
-                // Проверка на наличие тел (кроме стен)
+                // Check if there are any non-static bodies
                 const bodies = Matter.Composite.allBodies(this.engine.world).filter(b => !b.isStatic);
-                if (bodies.length === 0) return; // Пусто - не активируем
+                if (bodies.length === 0) return;
 
-                if (this.deleteMode) { this.toggleDeleteMode(); return; }
-                const success = await showRewardedAd();
-                if (success) this.toggleDeleteMode();
+                if (this.deleteMode) { 
+                    this.toggleDeleteMode(); 
+                    return; 
+                }
+
+                // Logic for free deletes vs Ad
+                if (this.freeDeletes > 0) {
+                    this.freeDeletes--;
+                    this.toggleDeleteMode();
+                    this.updateUI(); // Update badge count
+                } else {
+                    const success = await showRewardedAd();
+                    if (success) this.toggleDeleteMode();
+                }
             }
 
             toggleDeleteMode() {
@@ -754,15 +780,9 @@
                     if (this.currentBall.previewBody.angle) this.ctx.rotate(this.currentBall.previewBody.angle);
                     
                     const b = this.currentBall.previewBody;
-                    // Хак для отрисовки превью:
                     const originalPos = { x: b.position.x, y: b.position.y };
                     Matter.Body.setPosition(b, { x: this.currentBall.x, y: this.currentBall.y });
-                    // Для превью используем 0,0 т.к. мы в translate контексте
-                    // Но drawBodyFromVertices использует мировые координаты вершин.
-                    // Поэтому просто сдвигаем тело туда и рисуем. 
-                    // НО! Мы уже сделали translate ctx.
-                    // Лучше не делать ctx.translate, а просто сдвинуть тело и нарисовать.
-                    this.ctx.restore(); // Отменяем translate чтобы рисовать в мировых
+                    this.ctx.restore(); 
                     
                     this.drawBodyFromVertices(b);
                     Matter.Body.setPosition(b, originalPos);
@@ -799,7 +819,6 @@
                 this.ctx.stroke();
 
                 this.ctx.fillStyle = CONFIG.textColors[value] || "#f9f6f2";
-                // Адаптивный размер шрифта
                 const bb = body.bounds;
                 const h = bb.max.y - bb.min.y;
                 const fontSize = Math.max(12, h * 0.35); 
@@ -850,7 +869,18 @@
                 ui.showScreen('menu');
             }
 
-            updateUI() { document.getElementById('score-display').innerText = this.score; }
+            updateUI() { 
+                document.getElementById('score-display').innerText = this.score; 
+                
+                const badge = document.getElementById('delete-badge');
+                if (this.freeDeletes > 0) {
+                    badge.innerText = this.freeDeletes;
+                    badge.classList.add('free-uses');
+                } else {
+                    badge.innerText = 'AD';
+                    badge.classList.remove('free-uses');
+                }
+            }
         }
 
         const ui = {
