@@ -27,6 +27,7 @@
             --modal-shadow: rgba(0,0,0,0.15);
             --btn-bg: #faf8ef;
             --btn-text: #776e65;
+            --btn-border: transparent;
             --card-bg: #ffffff;
             --card-border: #e5e7eb;
             --card-locked: #f3f4f6;
@@ -36,13 +37,15 @@
             --bg-color: #111827;
             --text-color: #e5e7eb;
             --header-bg: #374151;
-            --score-bg: #4b5563;
+            --score-bg: #1f2937;
             --score-text: #e5e7eb;
             --canvas-bg: #1f2937;
             --modal-bg: rgba(17, 24, 39, 0.98);
             --modal-shadow: rgba(0,0,0,0.5);
-            --btn-bg: #374151;
-            --btn-text: #e5e7eb;
+            /* Кнопки теперь светлее фона шапки для контраста */
+            --btn-bg: #4b5563; 
+            --btn-text: #ffffff;
+            --btn-border: #6b7280;
             --card-bg: #1f2937;
             --card-border: #374151;
             --card-locked: #111827;
@@ -122,6 +125,7 @@
             justify-content: center;
             color: var(--btn-text);
             background: var(--btn-bg);
+            border: 1px solid var(--btn-border); /* Бордер для контраста в темной теме */
             font-size: 1.2rem;
             transition: all 0.2s;
             cursor: pointer;
@@ -136,6 +140,7 @@
             background: #ff6b6b !important;
             color: white !important;
             animation: pulse 1.5s infinite;
+            border-color: transparent;
         }
         
         .ad-badge {
@@ -418,10 +423,27 @@
                 gain.connect(this.ctx.destination);
                 osc.start(); osc.stop(t + duration);
             }
-            playPop(value) { this.playTone(200 + (Math.log2(value) * 60), 'sine', 0.2); }
-            playDelete() { this.playTone(150, 'square', 0.3); }
-            playDrop() { this.playTone(80, 'triangle', 0.1); }
-            playClick() { this.playTone(400, 'sine', 0.05); } 
+            vibrate(pattern) {
+                if (this.enabled && navigator.vibrate) {
+                    navigator.vibrate(pattern);
+                }
+            }
+            playPop(value) { 
+                this.playTone(200 + (Math.log2(value) * 60), 'sine', 0.2); 
+                this.vibrate(30); 
+            }
+            playDelete() { 
+                this.playTone(150, 'square', 0.3); 
+                this.vibrate([30, 50, 30]);
+            }
+            playDrop() { 
+                this.playTone(80, 'triangle', 0.1); 
+                this.vibrate(15);
+            }
+            playClick() { 
+                this.playTone(400, 'sine', 0.05); 
+                this.vibrate(10);
+            } 
             resume() { if (this.ctx.state === 'suspended') this.ctx.resume(); }
             toggle(state) { this.enabled = state; }
         }
@@ -461,11 +483,23 @@
             }
             saveGame(gameState) { this.data.savedGame = gameState; this.save(); ui.updateContinueButton(); }
             clearSavedGame() { this.data.savedGame = null; this.save(); ui.updateContinueButton(); }
-            updateScore(levelId, score, maxTile) {
+            updateRuntimeStats(levelId, score, maxTile) {
                 if (!this.data.stats[levelId]) this.data.stats[levelId] = { highScore: 0, maxTile: 2 };
                 const s = this.data.stats[levelId];
                 if (score > s.highScore) s.highScore = score;
                 if (maxTile > s.maxTile) s.maxTile = maxTile;
+            }
+            updateScore(levelId, score, maxTile) {
+                this.updateRuntimeStats(levelId, score, maxTile);
+                // Проверка уровней
+                const classicScore = this.data.stats.classic.highScore;
+                let changed = false;
+                CONFIG.levels.forEach(lvl => {
+                    if (classicScore >= lvl.scoreReq && !this.data.unlockedLevels.includes(lvl.id)) {
+                        this.data.unlockedLevels.push(lvl.id);
+                        changed = true;
+                    }
+                });
                 this.save();
             }
             toggleTheme() { this.data.theme = this.data.theme === 'light' ? 'dark' : 'light'; this.applySettings(); this.save(); return this.data.theme; }
@@ -536,7 +570,7 @@
                     const w = baseSize * 1.8;
                     body = Matter.Bodies.rectangle(x, y, w, w, { ...opts, chamfer: { radius: 3 } });
                 } else if (shape === 'triangle') {
-                    // Развернул треугольник острием вверх (Math.PI/2)
+                    // Основанием вниз (Math.PI/2)
                     body = Matter.Bodies.polygon(x, y, 3, baseSize * 1.2, { ...opts, chamfer: { radius: 5 }, angle: Math.PI/2 });
                 } else if (shape === 'hexagon') {
                     body = Matter.Bodies.polygon(x, y, 6, baseSize, { ...opts, chamfer: { radius: 4 }, angle: Math.PI/6 });
@@ -661,6 +695,12 @@
                 Matter.World.add(this.engine.world, newBody);
                 this.score += newValue;
                 this.sound.playPop(newValue);
+                
+                // Моментальное обновление статистики в памяти (для модалки)
+                let max = 0;
+                Matter.Composite.allBodies(this.engine.world).forEach(b => { if(b.gameValue > max) max = b.gameValue; });
+                this.data.updateRuntimeStats(this.currentLevelId, this.score, max);
+                
                 this.updateUI();
                 this.saveState();
             }
@@ -836,6 +876,8 @@
                     Matter.Runner.run(this.runner, this.engine); 
                     screen.classList.add('hidden'); 
                 }
+                // Сохраняем при паузе
+                this.saveState();
             }
 
             gameOver() {
@@ -898,9 +940,20 @@
                 const tbody = document.getElementById('stats-table-body');
                 tbody.innerHTML = '';
                 const stats = game.data.data.stats;
+                
                 CONFIG.levels.forEach(lvl => {
+                    // Статистика берется из data.stats, которая обновляется мгновенно в updateRuntimeStats
                     const s = stats[lvl.id] || { highScore: 0, maxTile: 0 };
-                    tbody.innerHTML += `<tr><td><div class="text-xs uppercase opacity-60">${lvl.name}</div></td><td class="text-[#edc22e] text-lg">${s.highScore}</td><td class="text-[#f67c5f]">${s.maxTile > 2 ? s.maxTile : '-'}</td></tr>`;
+                    // Если текущая игра этого уровня и очки больше рекорда — показываем текущие очки (визуально)
+                    // Но так как мы делаем updateRuntimeStats на каждом мерже, s.highScore уже актуален!
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><div class="text-xs uppercase opacity-60">${lvl.name}</div></td>
+                            <td class="text-[#edc22e] text-lg">${s.highScore}</td>
+                            <td class="text-[#f67c5f]">${s.maxTile > 2 ? s.maxTile : '-'}</td>
+                        </tr>
+                    `;
                 });
             },
 
@@ -943,7 +996,12 @@
             },
             showSettings() { document.getElementById('settings-modal').classList.remove('hidden'); this.updateSettingsUI(); },
             showRules() { document.getElementById('rules-modal').classList.remove('hidden'); },
-            showStats() { this.updateStatsTable(); document.getElementById('stats-modal').classList.remove('hidden'); },
+            showStats() { 
+                // Сохраняем статистику перед показом, чтобы убедиться что диск синхронизирован с памятью
+                game.data.save(); 
+                this.updateStatsTable(); 
+                document.getElementById('stats-modal').classList.remove('hidden'); 
+            },
             hideModal(id) { document.getElementById(id).classList.add('hidden'); },
             togglePause() { game.sound.playClick(); game.togglePause(); }
         };
