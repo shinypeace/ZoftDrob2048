@@ -149,7 +149,6 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             transition: background-color 0.3s;
         }
-        /* Стиль для плашки, когда есть бесплатные попытки */
         .ad-badge.free-uses {
             background-color: #22c55e;
         }
@@ -491,7 +490,7 @@
                 this.score = 0;
                 this.isPlaying = false;
                 this.currentLevelId = 'classic';
-                this.freeDeletes = 3; // Initial free uses
+                this.freeDeletes = 3; 
                 this.sound = new SoundManager();
                 this.data = new DataManager();
                 window.addEventListener('resize', () => { if(this.isPlaying) this.resize(); });
@@ -527,7 +526,6 @@
                 let shape = 'circle';
                 if (levelType === 'square') shape = 'rectangle';
                 else if (levelType === 'chaos') {
-                    // Cyclic shapes: 2^1 (0), 2^2 (1), 2^3 (2), 2^4 (3), 2^5 (0)...
                     const power = Math.round(Math.log2(value));
                     const shapeIndex = (power - 1) % 4;
                     const shapes = ['circle', 'rectangle', 'triangle', 'hexagon'];
@@ -538,8 +536,8 @@
                     const w = baseSize * 1.8;
                     body = Matter.Bodies.rectangle(x, y, w, w, { ...opts, chamfer: { radius: 3 } });
                 } else if (shape === 'triangle') {
-                    // Triangle rotated -PI/2 (point up)
-                    body = Matter.Bodies.polygon(x, y, 3, baseSize * 1.2, { ...opts, chamfer: { radius: 5 }, angle: -Math.PI/2 });
+                    // Развернул треугольник острием вверх (Math.PI/2)
+                    body = Matter.Bodies.polygon(x, y, 3, baseSize * 1.2, { ...opts, chamfer: { radius: 5 }, angle: Math.PI/2 });
                 } else if (shape === 'hexagon') {
                     body = Matter.Bodies.polygon(x, y, 6, baseSize, { ...opts, chamfer: { radius: 4 }, angle: Math.PI/6 });
                 } else {
@@ -564,7 +562,6 @@
                 this.isPaused = false;
                 this.deleteMode = false;
                 
-                // Reset free deletes for a fresh start unless loaded
                 if (!loadFromSave) {
                     this.freeDeletes = 3;
                 }
@@ -691,7 +688,6 @@
                 };
                 const handleMove = (pos) => {
                     if (this.deleteMode || !this.currentBall || this.isPaused) return;
-                    // Для превью используем примерный радиус bounding box
                     const bb = this.currentBall.previewBody.bounds;
                     const halfW = (bb.max.x - bb.min.x) / 2;
                     this.currentBall.x = Math.max(halfW, Math.min(this.width - halfW, pos.x));
@@ -708,7 +704,6 @@
 
             async tryActivateDelete() {
                 game.sound.playClick();
-                // Check if there are any non-static bodies
                 const bodies = Matter.Composite.allBodies(this.engine.world).filter(b => !b.isStatic);
                 if (bodies.length === 0) return;
 
@@ -717,11 +712,8 @@
                     return; 
                 }
 
-                // Logic for free deletes vs Ad
                 if (this.freeDeletes > 0) {
-                    this.freeDeletes--;
                     this.toggleDeleteMode();
-                    this.updateUI(); // Update badge count
                 } else {
                     const success = await showRewardedAd();
                     if (success) this.toggleDeleteMode();
@@ -746,6 +738,12 @@
                     Matter.World.remove(this.engine.world, clickedBody);
                     this.sound.playDelete();
                     this.toggleDeleteMode();
+                    
+                    // Списываем попытку только по факту удаления
+                    if (this.freeDeletes > 0) {
+                        this.freeDeletes--;
+                        this.updateUI();
+                    }
                     this.saveState();
                 }
             }
